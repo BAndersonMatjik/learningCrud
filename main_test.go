@@ -3,6 +3,7 @@ package learningcrud
 import (
 	"fmt"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 )
@@ -129,6 +130,7 @@ func TestGoroutineRangeChannel(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			channel <- "Perulangan ke " + strconv.Itoa(i)
 		}
+		// always close when is done do process if not will deadlock
 		close(channel)
 	}()
 
@@ -136,4 +138,138 @@ func TestGoroutineRangeChannel(t *testing.T) {
 		fmt.Println(data)
 	}
 	fmt.Println("end")
+}
+
+func GiveMeResponse(channel chan<- string) {
+	time.Sleep(2 * time.Second)
+	channel <- "data kuy"
+}
+
+// if we need more than one channel because on rangechannel is not posible using multiple channel
+// this will get faster come data will be serve result will be random because listen to 2 channel
+func TestGoroutineSelectChannel(t *testing.T) {
+	channel1 := make(chan string)
+	channel2 := make(chan string)
+
+	defer close(channel1)
+	defer close(channel2)
+	//more good best practice close when done
+	counter := 0
+	go GiveMeResponse(channel1)
+	go GiveMeResponse(channel2)
+	for {
+		select {
+		case data := <-channel1:
+			fmt.Println("data channel 1 ", data)
+			counter++
+		case data := <-channel2:
+			fmt.Println("data channel 2 ", data)
+			counter++
+		default:
+			fmt.Println("Waiting Data")
+		}
+
+		if counter == 2 {
+			break
+		}
+	}
+}
+
+// add default but we select channel empty
+func TestGoroutineDefaultSelectChannel(t *testing.T) {
+	channel1 := make(chan string)
+	channel2 := make(chan string)
+	//more good best practice close when done
+	counter := 0
+	go GiveMeResponse(channel1)
+	go GiveMeResponse(channel2)
+
+	for {
+		select {
+		case data := <-channel1:
+			fmt.Println("data channel 1 ", data)
+			counter++
+		case data := <-channel2:
+			fmt.Println("data channel 2 ", data)
+			counter++
+		default:
+			fmt.Println("Waiting Data")
+		}
+		if counter == 2 {
+			break
+		}
+	}
+}
+
+// sharing variable using by multiple goroutine
+// WILL BE RACE CONDITION
+func TestGoroutineIssueRaceCondition(t *testing.T) {
+
+	//example the issue x will be use multiple goroutine
+	x := 0
+	for i := 1; i <= 1000; i++ {
+		go func() {
+			for j := 1; j <= 100; j++ {
+				x = x + 1
+			}
+		}()
+	}
+	time.Sleep(5 * time.Second)
+	fmt.Println("Counter : ", x)
+}
+
+// Mutual Exclusion (Solution Race Condition)
+// little bit performance impact
+// to handling issue race condition will be lock the variable
+// just one goroutine will be give permission to lock and unlock if goroutine unlock the mutex next goroutine can access mutex
+func TestGoroutineMutex(t *testing.T) {
+	//example the issue x will be use multiple goroutine
+	x := 0
+	var mutex sync.Mutex
+	for i := 1; i <= 1000; i++ {
+		go func() {
+			for j := 1; j <= 100; j++ {
+				mutex.Lock()
+				x = x + 1
+				mutex.Unlock()
+			}
+		}()
+	}
+	time.Sleep(5 * time.Second)
+	fmt.Println("Counter : ", x)
+}
+
+type BankAccount struct {
+	RWMutex sync.RWMutex
+	Balance int
+}
+
+func (account *BankAccount) AddBalance(amount int) {
+	account.RWMutex.Lock()
+	account.Balance = account.Balance + amount
+	account.RWMutex.Unlock()
+}
+
+func (account *BankAccount) GetBalance() int {
+	account.RWMutex.RLock()
+	balance := account.Balance
+	account.RWMutex.RUnlock()
+	return balance
+}
+
+// Mutual Exclusion Read write
+// handling read and write data
+func TestGoroutineMutexReadAndWrite(t *testing.T) {
+	//example the issue x will be use multiple goroutine
+	account := BankAccount{}
+
+	for i := 0; i < 100; i++ {
+		go func() {
+			for j := 0; j < 100; j++ {
+				account.AddBalance(1)
+				fmt.Println(account.GetBalance())
+			}
+		}()
+	}
+	time.Sleep(5 * time.Second)
 }
