@@ -2,6 +2,7 @@ package learningcrud
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -91,4 +92,47 @@ func TestGoroutineChannelJustInAndOut(t *testing.T) {
 	go RunningChannelJustOut(channel)
 
 	time.Sleep(5 * time.Second)
+}
+
+func RunningMany() {
+
+}
+
+// channel just will get 1 data if wanna get 2 or more using buffered channel
+// but buffered channel must have capacity no miminum and max
+// if using buffered not will deadlock if data not get used
+func TestGoroutineBufferedChannel(t *testing.T) {
+	channel := make(chan string, 3) //make channel buffer
+	defer close(channel)
+
+	go func() {
+		channel <- "Billy"
+		channel <- "iqbal"
+		fmt.Println("buffer data size", len(channel)) //show data size
+		channel <- "ridhwan"
+	}()
+	go func() {
+		fmt.Println(<-channel)
+		fmt.Println(<-channel)
+		fmt.Println(<-channel)
+	}()
+	time.Sleep(2 * time.Second)
+	fmt.Println("Done")
+	fmt.Println("buffer size", cap(channel)) //show buffer size
+}
+
+// Range will do iteration data in to channel when channel is close iteration will stop
+func TestGoroutineRangeChannel(t *testing.T) {
+	channel := make(chan string) //make channel buffer
+	//more good best practice close when done
+	go func() {
+		for i := 0; i < 10; i++ {
+			channel <- "Perulangan ke " + strconv.Itoa(i)
+		}
+		close(channel)
+	}()
+
+	for data := range channel {
+		fmt.Println(data)
+	}
 }
