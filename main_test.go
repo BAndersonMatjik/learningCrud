@@ -135,4 +135,5 @@ func TestGoroutineRangeChannel(t *testing.T) {
 	for data := range channel {
 		fmt.Println(data)
 	}
+	fmt.Println("end")
 }
